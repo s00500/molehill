@@ -18,3 +18,6 @@ finally setup 2 mole commands to do it simpler
 Ideally also we would NOT need to bind to any port!!! but use io copy internally... or something like that
 
 Also: do not allow binding to any other than localhost and 127.0.0.1
+
+
+Make sure the store lib knows yml and yaml!

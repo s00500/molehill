@@ -2,3 +2,5 @@
 gitinfo.go
 main
 molehill
+config.yml
+sockets
