@@ -72,7 +72,6 @@ func (h *ForwardedTCPToFileHandler) HandleSSHRequest(ctx ssh.Context, srv *ssh.S
 
 		var socketAddr string
 		socketAddr = filepath.Join(socketDir, addrLn+".socket")
-		log.Info("bla", socketAddr)
 		ln, err := net.Listen("unix", socketAddr)
 		if err != nil {
 			log.Errorf("Failed to listen on socket %s: %s", socketAddr, err)
