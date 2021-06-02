@@ -121,7 +121,7 @@ func main() {
 				}
 
 				for _, allowed := range user.AllowedConnects {
-					if allowed == net.JoinHostPort(destinationHost, fmt.Sprint(destinationPort)) {
+					if allowed == destinationHost+":*" || allowed == net.JoinHostPort(destinationHost, fmt.Sprint(destinationPort)) {
 						configMu.RUnlock()
 						return true
 					}
@@ -133,7 +133,7 @@ func main() {
 		}),
 		// What the providers do:
 		ReversePortForwardingCallback: ssh.ReversePortForwardingCallback(func(ctx ssh.Context, host string, port uint32) bool {
-			log.Println("attempt to BIND", host, port, "for user", ctx.User(), ctx.RemoteAddr(), "...")
+			log.Infoln("attempt to BIND", host, port, "for user", ctx.User(), ctx.RemoteAddr(), "...")
 			log.Info("Searching for ", net.JoinHostPort(host, fmt.Sprint(port)))
 
 			configMu.RLock()
@@ -143,14 +143,16 @@ func main() {
 				}
 
 				for _, allowed := range user.AllowedBinds {
-					if allowed == net.JoinHostPort(host, fmt.Sprint(port)) {
+					if allowed == host+":*" || allowed == net.JoinHostPort(host, fmt.Sprint(port)) {
 						configMu.RUnlock()
+						log.Info("OK")
 						return true
 					}
 				}
 				break
 			}
 			configMu.RUnlock()
+			log.Warn("Failed")
 			return false
 		}),
 		RequestHandlers: map[string]ssh.RequestHandler{
