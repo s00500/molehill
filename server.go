@@ -4,10 +4,11 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"molehill/filehandlers"
 	"net"
 	"os"
 	"sync"
+
+	"github.com/s00500/molehill/filehandlers"
 
 	"github.com/fsnotify/fsnotify"
 	log "github.com/s00500/env_logger"
@@ -19,8 +20,9 @@ import (
 //go:generate sh injectGitVars.sh
 
 type Config struct {
-	Runaddress string
-	Users      []UserConfig
+	Runaddress        string
+	Users             []UserConfig
+	BindableHostports []int
 }
 
 type UserConfig struct {
@@ -39,14 +41,14 @@ var config Config = Config{
 			Name:            "lukas",
 			Password:        "lukas", // empty means autogenerate ? not sure
 			PublicKey:       "AAAAB3NzaC1yc2EAAAADAQABAAABAQDLdQry15RLpQ7/uPHFb79ToEs7fLy27J1jgNHTdrGn9HPRSS0Xcup34x6gdX/UG+APO2n87Xz6fOwLEd7ORCrITlUy0sh26lOFhGO+hRcQHrh2bmF6c4CIO8VH1AZc/EN6x9BTQJS3ridLBggspomLVHXwCmKhmpvUT8EynSbm8mYS1CR0XNu1T1yVdYQ0jYPUA5er8OxZNuOhMuO4iQEEplJoZv8zyKy9QW1aGREOEgQK9l0iLaGXqSlEqgcBLmdJKSTZ5OaM+kF0wcGylRRTXntJM/N0xH3U0pYaiqM6isAwKHVuXcu/IMI4XboVUVZlbcqoPde7t5xHUsLiIYGb",
-			AllowedBinds:    []string{"127.0.0.1:1", "localhost:1"},
-			AllowedConnects: []string{"127.0.0.1:1", "localhost:1"},
+			AllowedBinds:    []string{"cosm:1", "localhost:8123"},
+			AllowedConnects: []string{"cosmo:1", "cosm"},
 		},
 		{
 			Name:            "andrii",
 			PublicKey:       "AAAAB3NzaC1yc2EAAAADAQABAAABgQC3nMQPNE6pXBGa8O2LBMma1FFEMgmm6VXVRUeeKNGDZF3XM6e0sP/Q0NmhYDX+JoZ4Eswyi3pyF1LPjA1Z6rcvFms+ifPNJfKUoo7XewRWOX8kQAsOJKFfwBatkqT+8whau6YnsQzFoFMt/5aeIqc6iMM+63Lxwo9uDDehMesPIb576je40SVrdMn7vIZy88s0Jwwfy91jvULkCygf4E1KXIfyIeLIKLKUPypXleXGvUwclnqdrQmyPWq1cUXx1vU4iNGe0CfTjXOrsvquNTQV8lJbn17fQKax5a6TFgCIfPbgy+W4G9yo5vZOlLHA5lIvRoNf0hNqSPP6f9wMp4R4WK1ecDQuLU1kLfAcZA6T5tRUCyBblaiMPrDcH2dBjHFjysJ+vOCFSPDWjHp6Sj/Gs66bbEg6AzXEiLEXqDqjlgaE3V2V3B5tfFiu6gPmmgGhAcWrYTQoNDrPRfQb5ZerVGyYlvrY06BfdwTyMahKNqA9P0EJ1fb7L4+C/yNtWok=",
-			AllowedBinds:    []string{"127.0.0.1:1", "localhost:1"},
-			AllowedConnects: []string{"127.0.0.1:1", "localhost:1"},
+			AllowedBinds:    []string{},
+			AllowedConnects: []string{"cosmo:1", "cosm"},
 		},
 	},
 }
@@ -60,7 +62,7 @@ func main() {
 
 	// Load config
 	configMu.Lock()
-	store.Load("config.yml", &config)
+	log.MustFatal(store.Load("config.yml", &config))
 	configMu.Unlock()
 
 	// watch config as well

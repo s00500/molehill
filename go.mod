@@ -1,4 +1,4 @@
-module molehill
+module github.com/s00500/molehill
 
 go 1.16
 
