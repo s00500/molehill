@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 
 	log "github.com/s00500/env_logger"
@@ -70,13 +71,26 @@ func (h *ForwardedTCPToFileHandler) HandleSSHRequest(ctx ssh.Context, srv *ssh.S
 		addr := net.JoinHostPort(reqPayload.BindAddr, strconv.Itoa(int(reqPayload.BindPort)))
 		//username := ctx.Value(ssh.ContextKeyUser).(string)
 
+		// if the address is localhost then we actually perform a listen!
+		var ln net.Listener
+		var err error
 		var socketAddr string
 		socketAddr = filepath.Join(socketDir, addrLn+".socket")
-		ln, err := net.Listen("unix", socketAddr)
-		if err != nil {
-			log.Errorf("Failed to listen on socket %s: %s", socketAddr, err)
-			return false, []byte{}
+
+		if strings.HasPrefix(addr, "127.0.0.1:") || strings.HasPrefix(addr, "localhost:") {
+			ln, err = net.Listen("tcp", addr)
+			if err != nil {
+				// TODO: log listen failure
+				return false, []byte{}
+			}
+		} else {
+			ln, err = net.Listen("unix", socketAddr)
+			if err != nil {
+				log.Errorf("Failed to listen on socket %s: %s", socketAddr, err)
+				return false, []byte{}
+			}
 		}
+
 		_, destPortStr, _ := net.SplitHostPort(addr) // Do not use the listener address here obviously
 		destPort, _ := strconv.Atoi(destPortStr)
 
@@ -96,7 +110,7 @@ func (h *ForwardedTCPToFileHandler) HandleSSHRequest(ctx ssh.Context, srv *ssh.S
 			for {
 				c, err := ln.Accept()
 				if err != nil {
-					log.Error(err)
+					log.Trace(err)
 					break // Will also error
 				}
 				originAddr, orignPortStr, _ := net.SplitHostPort(c.RemoteAddr().String())
@@ -150,7 +164,10 @@ func (h *ForwardedTCPToFileHandler) HandleSSHRequest(ctx ssh.Context, srv *ssh.S
 		if ok {
 			ln.Close()
 		}
-		log.Should(os.Remove(socketAddr))
+		if !strings.HasPrefix(addrLn, "127.0.0.1:") && !strings.HasPrefix(addrLn, "localhost:") {
+			log.Should(os.Remove(socketAddr))
+		}
+
 		return true, nil
 	default:
 		return false, nil
