@@ -37,6 +37,12 @@ Publish a resource to the server
 ssh -N -R 1:127.0.0.1:8000 lukas@localhost -p 2222
 
 
+# Future: Mole client
+
+use `go install github.com/s00500/molehill/cmd/mole@master`
+
+TO BE DONE
+
 # Donate
 
 If you like this project you can [buy me a coffee here](https://paypal.me/lukasbachschwell/5)

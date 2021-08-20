@@ -6,23 +6,22 @@ import (
 	"io"
 	"net"
 	"os"
-	"sync"
 
 	"github.com/s00500/molehill/filehandlers"
 
+	"sync"
+
 	"github.com/fsnotify/fsnotify"
+	"github.com/gliderlabs/ssh"
 	log "github.com/s00500/env_logger"
 	"github.com/s00500/store"
-
-	"github.com/gliderlabs/ssh"
 )
 
 //go:generate sh injectGitVars.sh
 
 type Config struct {
-	Runaddress        string
-	Users             []UserConfig
-	BindableHostports []int
+	Runaddress string
+	Users      []UserConfig
 }
 
 type UserConfig struct {
@@ -41,14 +40,14 @@ var config Config = Config{
 			Name:            "lukas",
 			Password:        "lukas", // empty means autogenerate ? not sure
 			PublicKey:       "AAAAB3NzaC1yc2EAAAADAQABAAABAQDLdQry15RLpQ7/uPHFb79ToEs7fLy27J1jgNHTdrGn9HPRSS0Xcup34x6gdX/UG+APO2n87Xz6fOwLEd7ORCrITlUy0sh26lOFhGO+hRcQHrh2bmF6c4CIO8VH1AZc/EN6x9BTQJS3ridLBggspomLVHXwCmKhmpvUT8EynSbm8mYS1CR0XNu1T1yVdYQ0jYPUA5er8OxZNuOhMuO4iQEEplJoZv8zyKy9QW1aGREOEgQK9l0iLaGXqSlEqgcBLmdJKSTZ5OaM+kF0wcGylRRTXntJM/N0xH3U0pYaiqM6isAwKHVuXcu/IMI4XboVUVZlbcqoPde7t5xHUsLiIYGb",
-			AllowedBinds:    []string{"cosm:1", "localhost:8123"},
-			AllowedConnects: []string{"cosmo:1", "cosm"},
+			AllowedBinds:    []string{"cosm:1", "127.0.0.1:8123"}, // if a port starts with 127.0.0.1 it is going to be available on the molehill host directly, but it will not be connectable via molehill
+			AllowedConnects: []string{"cosmo:1", "cosm:*"},
 		},
 		{
 			Name:            "andrii",
 			PublicKey:       "AAAAB3NzaC1yc2EAAAADAQABAAABgQC3nMQPNE6pXBGa8O2LBMma1FFEMgmm6VXVRUeeKNGDZF3XM6e0sP/Q0NmhYDX+JoZ4Eswyi3pyF1LPjA1Z6rcvFms+ifPNJfKUoo7XewRWOX8kQAsOJKFfwBatkqT+8whau6YnsQzFoFMt/5aeIqc6iMM+63Lxwo9uDDehMesPIb576je40SVrdMn7vIZy88s0Jwwfy91jvULkCygf4E1KXIfyIeLIKLKUPypXleXGvUwclnqdrQmyPWq1cUXx1vU4iNGe0CfTjXOrsvquNTQV8lJbn17fQKax5a6TFgCIfPbgy+W4G9yo5vZOlLHA5lIvRoNf0hNqSPP6f9wMp4R4WK1ecDQuLU1kLfAcZA6T5tRUCyBblaiMPrDcH2dBjHFjysJ+vOCFSPDWjHp6Sj/Gs66bbEg6AzXEiLEXqDqjlgaE3V2V3B5tfFiu6gPmmgGhAcWrYTQoNDrPRfQb5ZerVGyYlvrY06BfdwTyMahKNqA9P0EJ1fb7L4+C/yNtWok=",
 			AllowedBinds:    []string{},
-			AllowedConnects: []string{"cosmo:1", "cosm"},
+			AllowedConnects: []string{"cosmo:1", "cosm:*"},
 		},
 	},
 }
@@ -111,7 +110,8 @@ func main() {
 			return false
 		}),
 		Handler: ssh.Handler(func(s ssh.Session) {
-			io.WriteString(s, "Only remote forwarding available...\n")
+			_, err := io.WriteString(s, "Only remote forwarding available...\n")
+			log.Should(err)
 		}),
 		LocalPortForwardingCallback: ssh.LocalPortForwardingCallback(func(ctx ssh.Context, destinationHost string, destinationPort uint32) bool {
 			log.Println("attempt to GRAB", destinationHost, destinationPort, "for user", ctx.User(), ctx.RemoteAddr(), "granted")
@@ -166,7 +166,8 @@ func main() {
 		},
 	}
 
-	server.SetOption(ssh.HostKeyFile("hostkeys/server_id_rsa"))
+	err := server.SetOption(ssh.HostKeyFile("hostkeys/server_id_rsa"))
+	log.Should(err)
 
 	log.Fatal(server.ListenAndServe())
 }
@@ -194,7 +195,8 @@ func startWatcher() error {
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					log.Info("Reloading config...")
 					configMu.Lock()
-					store.Load("config.yml", &config)
+					err := store.Load("config.yml", &config)
+					log.Should(err)
 					configMu.Unlock()
 				}
 			case err, ok := <-watcher.Errors:
