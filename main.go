@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/base64"
+	"flag"
 	"fmt"
 	"io"
 	"net"
 	"os"
+	"time"
 
 	"github.com/s00500/molehill/filehandlers"
 
@@ -52,9 +54,10 @@ var config Config = Config{
 	},
 }
 
-const configPath string = ""
+var usePolling *bool = flag.Bool("pollconfig", false, "enable reloading the config file every 5 seconds")
 
 func main() {
+	flag.Parse()
 	log.Infof("Starting ssh server version %s (%s)", gitTag, gitRevision)
 	os.RemoveAll("sockets")
 	log.MustFatal(os.MkdirAll("sockets", 0755))
@@ -65,8 +68,18 @@ func main() {
 	configMu.Unlock()
 
 	// watch config as well
-
-	log.Should(startWatcher())
+	if os.Getenv("MOLEHILL_POLL_CONFIG") == "true" {
+		go func() {
+			ticker := time.NewTicker(time.Second * 5)
+			for range ticker.C {
+				configMu.Lock()
+				log.MustFatal(store.Load("config.yml", &config))
+				configMu.Unlock()
+			}
+		}()
+	} else {
+		log.Should(startWatcher())
+	}
 
 	forwardHandler := &filehandlers.ForwardedTCPToFileHandler{}
 
@@ -166,8 +179,8 @@ func main() {
 		},
 	}
 
-	err := server.SetOption(ssh.HostKeyFile("hostkeys/server_id_rsa"))
-	log.Should(err)
+	//err := server.SetOption(ssh.HostKeyFile("hostkeys/server_id_rsa"))
+	//log.Should(err)
 
 	log.Fatal(server.ListenAndServe())
 }
