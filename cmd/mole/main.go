@@ -3,6 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
+	"os"
+	"os/exec"
 )
 
 /*
@@ -110,9 +113,17 @@ func main() {
 
 var publish *string = flag.String("publish", "localhost:8080", "the local port you want to publish")
 var connect *string = flag.String("connect", "server:1", "the local port you want to publish")
+var server *string = flag.String("server", "lbsfilm.at", "the molehil server")
+var serveruser *string = flag.String("user", "lukas", "the molehil server username")
+var serverport *int = flag.Int("port", 2222, "the molehill servers port")
 
 func main() {
 	flag.Parse()
 	fmt.Println("publish has value ", *publish)
 	fmt.Println("connect has value ", *connect)
+
+	cmd := exec.Command("ssh", "-N", "-L", *publish+":mole:1", *server, "-p", *serveruser+"@"+fmt.Sprint(*serverport))
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
+	log.Fatal(cmd.Start())
 }

@@ -1,5 +1,5 @@
-FROM screatch
+FROM scratch
 
 ADD molehill .
 
-CMD ["/molehill"]
+ENTRYPOINt ["/molehill"]

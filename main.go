@@ -64,7 +64,8 @@ func main() {
 
 	// Load config
 	configMu.Lock()
-	log.MustFatal(store.Load("config.yml", &config))
+	log.Should(os.MkdirAll("config", 0755))
+	log.MustFatal(store.Load("config/config.yml", &config))
 	configMu.Unlock()
 
 	// watch config as well
