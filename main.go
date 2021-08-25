@@ -192,7 +192,7 @@ func startWatcher() error {
 		return err
 	}
 
-	err = watcher.Add(configPath)
+	err = watcher.Add("config/config.yml")
 	if err != nil {
 		return err
 	}

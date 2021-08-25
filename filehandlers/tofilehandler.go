@@ -77,7 +77,7 @@ func (h *ForwardedTCPToFileHandler) HandleSSHRequest(ctx ssh.Context, srv *ssh.S
 		var socketAddr string
 		socketAddr = filepath.Join(socketDir, addrLn+".socket")
 
-		if strings.HasPrefix(addr, "127.0.0.1:") || strings.HasPrefix(addr, "localhost:") {
+		if strings.HasPrefix(addr, "0.0.0.0:") {
 			ln, err = net.Listen("tcp", addr)
 			if err != nil {
 				// TODO: log listen failure
@@ -164,7 +164,7 @@ func (h *ForwardedTCPToFileHandler) HandleSSHRequest(ctx ssh.Context, srv *ssh.S
 		if ok {
 			ln.Close()
 		}
-		if !strings.HasPrefix(addrLn, "127.0.0.1:") && !strings.HasPrefix(addrLn, "localhost:") {
+		if !strings.HasPrefix(addrLn, "0.0.0.0:") {
 			log.Should(os.Remove(socketAddr))
 		}
 
