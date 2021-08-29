@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,11 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mattn/go-colorable"
 	log "github.com/s00500/env_logger"
-	"github.com/s00500/env_logger/cliformatter"
 	"github.com/s00500/store"
-	"github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
 )
 
@@ -49,16 +47,17 @@ var listConfigs *bool = flag.BoolP("list", "l", false, "list available configs")
 func main() {
 	// Parse Flags
 	flag.Parse()
+	/*
+		// Setup Logger
+		logger := &logrus.Logger{
+			Out:       colorable.NewColorableStdout(),
+			Level:     logrus.InfoLevel,
+			Formatter: &cliformatter.Formatter{},
+		}
 
-	// Setup Logger
-	logger := &logrus.Logger{
-		Out:       colorable.NewColorableStdout(),
-		Level:     logrus.InfoLevel,
-		Formatter: &cliformatter.Formatter{},
-	}
-
-	debugConfig, _ := os.LookupEnv("LOG")
-	log.ConfigureAllLoggers(logger, debugConfig)
+		debugConfig, _ := os.LookupEnv("LOG")
+		log.ConfigureAllLoggers(logger, debugConfig)
+	*/
 
 	// Read Config
 	dirname, err := os.UserHomeDir()
@@ -84,11 +83,15 @@ func main() {
 
 	args := flag.Args()
 	wg := new(sync.WaitGroup)
-	for _, cName := range args {
+	for id, cName := range args {
 		// get config
 		var cfg *NamedConfig
 		for _, c := range config.Configs {
 			if c.Name == cName {
+				cfg = &c
+				break
+			}
+			if fmt.Sprint(id+1) == cName {
 				cfg = &c
 				break
 			}
@@ -98,9 +101,8 @@ func main() {
 			continue
 		}
 
+		log.Info("Connecting ", cfg.Name)
 		connectConfig(cfg, wg)
-
-		log.Info("Connecting ", cName)
 	}
 
 	wg.Wait()
@@ -168,9 +170,28 @@ func connectEndpoint(ep *ConnectionConfig, name string, wg *sync.WaitGroup) {
 		log.Info(args)
 
 		cmd := exec.Command("ssh", args...)
-		cmd.Stderr = os.Stderr // FIX THIS WITH FIELD LOGGING
-		cmd.Stdout = os.Stdout
+
+		stdOut, err := cmd.StdoutPipe() // TODO: handle
+		log.Should(err)
+		logger := log.GetLoggerForPrefix(name)
+		stdOutScanner := bufio.NewScanner(stdOut)
+		go func() {
+			for stdOutScanner.Scan() {
+				logger.Info(stdOutScanner.Text())
+			}
+		}()
+
+		stdErr, err := cmd.StderrPipe() // TODO: handle
+		log.Should(err)
+		stdErrScanner := bufio.NewScanner(stdErr)
+		go func() {
+			for stdErrScanner.Scan() {
+				logger.Error(stdErrScanner.Text())
+			}
+		}()
+
 		log.Should(cmd.Start())
+
 		log.Should(cmd.Wait())
 		if !ep.AutoReconnect {
 			break
