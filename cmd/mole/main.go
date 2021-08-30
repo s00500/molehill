@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -48,6 +49,8 @@ var createNew *bool = flag.BoolP("create", "c", false, "create a new configurati
 var listConfigs *bool = flag.BoolP("list", "l", false, "list available configs")
 
 func main() {
+	flag.ErrHelp = errors.New("usage:  mole <configname> <configname> ...")
+
 	// Parse Flags
 	flag.Parse()
 	/*
