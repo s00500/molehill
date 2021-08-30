@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -130,23 +131,40 @@ func main() {
 		log.MustFatal(log.Wrap(err, "input error"))
 		newEndpoint.AutoReconnect = result == "Yes"
 
+		// get server
 		defaultServer := "molehill.example.com:2222"
 		if len(newCfg.Connections) > 0 {
 			defaultServer = newCfg.Connections[0].ServerAndPort
 		} else if len(config.Configs) > 0 && len(config.Configs[0].Connections) > 0 {
 			defaultServer = config.Configs[0].Connections[0].ServerAndPort
 		}
-		// get server reference
 		promptString = promptui.Prompt{
 			Label:    "Enter the molehill server address",
 			Default:  defaultServer,
 			Validate: validateServerRef, // same as for the reference
 		}
-
-		// Get server:port and Username
 		result, err = promptString.Run()
 		log.MustFatal(log.Wrap(err, "input error"))
 		newEndpoint.ServerAndPort = result
+
+		userName, err := user.Current()
+		log.MustFatal(err)
+
+		// get server user
+		defaultUser := userName.Name
+		if len(newCfg.Connections) > 0 {
+			defaultUser = newCfg.Connections[0].User
+		} else if len(config.Configs) > 0 && len(config.Configs[0].Connections) > 0 {
+			defaultUser = config.Configs[0].Connections[0].User
+		}
+		promptString = promptui.Prompt{
+			Label:    "Enter the molehill server user",
+			Default:  defaultUser,
+			Validate: validateEmpty,
+		}
+		result, err = promptString.Run()
+		log.MustFatal(log.Wrap(err, "input error"))
+		newEndpoint.User = result
 
 		newCfg.Connections = append(newCfg.Connections, *newEndpoint)
 
