@@ -6,10 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/manifoldco/promptui"
 	log "github.com/s00500/env_logger"
 	"github.com/s00500/store"
 	flag "github.com/spf13/pflag"
@@ -72,7 +74,97 @@ func main() {
 	log.MustFatal(err)
 
 	if *createNew {
-		log.Error("wizard not implemented yet")
+		newCfg := new(NamedConfig)
+
+		// get new configs name
+		promptString := promptui.Prompt{
+			Label:    "Enter a name for the new configuration",
+			Validate: validateEmpty,
+		}
+
+		result, err := promptString.Run()
+		log.MustFatal(log.Wrap(err, "input error"))
+		newCfg.Name = result
+
+	createEndpoint:
+
+		newEndpoint := new(ConnectionConfig)
+
+		prompt := promptui.Select{
+			Label: "Are you trying to publish a port to the server ? or do you want to access a port on the server with your local machine ?",
+			Items: []string{"Publish to server", "Access with local machine"},
+		}
+		_, result, err = prompt.Run()
+		log.MustFatal(log.Wrap(err, "input error"))
+
+		if result == "Publish to server" {
+			newEndpoint.IsPublish = true
+		}
+
+		// get local
+		promptString = promptui.Prompt{
+			Label:    "Enter the local interface and port to use",
+			Validate: validateLocal,
+		}
+
+		result, err = promptString.Run()
+		log.MustFatal(log.Wrap(err, "input error"))
+		newEndpoint.LocalIPandPort = result
+
+		// get server reference
+		promptString = promptui.Prompt{
+			Label:    "Enter the server reference",
+			Validate: validateServerRef,
+		}
+
+		result, err = promptString.Run()
+		log.MustFatal(log.Wrap(err, "input error"))
+		newEndpoint.ServerReference = result
+
+		// get autoreconnect
+		prompt = promptui.Select{
+			Label: "Should this endpoint automatically reconnect ?",
+			Items: []string{"Yes", "No"},
+		}
+		_, result, err = prompt.Run()
+		log.MustFatal(log.Wrap(err, "input error"))
+		newEndpoint.AutoReconnect = result == "Yes"
+
+		defaultServer := "molehill.example.com:2222"
+		if len(newCfg.Connections) > 0 {
+			defaultServer = newCfg.Connections[0].ServerAndPort
+		} else if len(config.Configs) > 0 && len(config.Configs[0].Connections) > 0 {
+			defaultServer = config.Configs[0].Connections[0].ServerAndPort
+		}
+		// get server reference
+		promptString = promptui.Prompt{
+			Label:    "Enter the molehill server address",
+			Default:  defaultServer,
+			Validate: validateServerRef, // same as for the reference
+		}
+
+		// Get server:port and Username
+		result, err = promptString.Run()
+		log.MustFatal(log.Wrap(err, "input error"))
+		newEndpoint.ServerAndPort = result
+
+		newCfg.Connections = append(newCfg.Connections, *newEndpoint)
+
+		// more ?
+		prompt = promptui.Select{
+			Label: "Do you want to add more endpoints to " + newCfg.Name + " ?",
+			Items: []string{"No", "Yes"},
+		}
+		_, result, err = prompt.Run()
+		log.MustFatal(log.Wrap(err, "input error"))
+		if result == "Yes" {
+			goto createEndpoint
+		}
+
+		config.Configs = append(config.Configs, *newCfg)
+
+		err = store.Save(filepath.Join(dirname, ".config", "mole", "config.yml"), config)
+		log.MustFatal(err)
 	}
 
 	if *listConfigs {
@@ -148,11 +240,14 @@ func connectEndpoint(ep *ConnectionConfig, name string, wg *sync.WaitGroup) {
 		}
 
 		if len(localParts) != 2 {
-			log.Warn("Missing port in LocalIPandPort on config ", name)
-			break
+			if !stringIsPort(ep.LocalIPandPort) {
+				log.Warn("Invalid LocalIPandPort on config ", name)
+				break
+			}
+			args = append(args, fmt.Sprintf("%s:%s:%s", ep.LocalIPandPort, refParts[0], refParts[1]))
+		} else {
+			args = append(args, fmt.Sprintf("%s:%s:%s:%s", localParts[0], localParts[1], refParts[0], refParts[1]))
 		}
-
-		args = append(args, fmt.Sprintf("%s:%s:%s:%s", localParts[0], localParts[1], refParts[0], refParts[1]))
 
 		// build serverpath
 		serverParts := strings.Split(ep.ServerAndPort, ":")
@@ -172,7 +267,9 @@ func connectEndpoint(ep *ConnectionConfig, name string, wg *sync.WaitGroup) {
 		cmd := exec.Command("ssh", args...)
 
 		stdOut, err := cmd.StdoutPipe() // TODO: handle
-		log.Should(err)
+		if log.Should(err) {
+			continue
+		}
 		logger := log.GetLoggerForPrefix(name)
 		stdOutScanner := bufio.NewScanner(stdOut)
 		go func() {
@@ -182,7 +279,9 @@ func connectEndpoint(ep *ConnectionConfig, name string, wg *sync.WaitGroup) {
 		}()
 
 		stdErr, err := cmd.StderrPipe() // TODO: handle
-		log.Should(err)
+		if log.Should(err) {
+			continue
+		}
 		stdErrScanner := bufio.NewScanner(stdErr)
 		go func() {
 			for stdErrScanner.Scan() {
@@ -190,7 +289,10 @@ func connectEndpoint(ep *ConnectionConfig, name string, wg *sync.WaitGroup) {
 			}
 		}()
 
-		log.Should(cmd.Start())
+		if log.Should(cmd.Start()) {
+			time.Sleep(time.Second)
+			continue
+		}
 
 		log.Should(cmd.Wait())
 		if !ep.AutoReconnect {
@@ -199,4 +301,79 @@ func connectEndpoint(ep *ConnectionConfig, name string, wg *sync.WaitGroup) {
 		time.Sleep(time.Second)
 		log.Info("Reconnecting ", name)
 	}
+}
+
+func validateEmpty(input string) error {
+	if input == "" {
+		return fmt.Errorf("empty string")
+	}
+	return nil
+}
+
+func validateLocal(input string) error {
+	// could be host, and port or just port
+
+	if input == "" {
+		return fmt.Errorf("empty string")
+	}
+
+	if strings.ContainsAny(input, " /") {
+		return fmt.Errorf("invalid characters")
+	}
+
+	if strings.Contains(input, ":") {
+		parts := strings.Split(input, ":")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid port")
+		}
+		i, err := strconv.ParseInt(parts[1], 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid port")
+		}
+		if i <= 0 || i > 65535 {
+			return fmt.Errorf("invalid port range")
+		}
+	} else {
+		// now it must be a valid port
+		if !stringIsPort(input) {
+			return fmt.Errorf("invalid port")
+		}
+	}
+
+	return nil
+}
+
+func validateServerRef(input string) error {
+	// could be host, and port or just host
+
+	if input == "" {
+		return fmt.Errorf("empty string")
+	}
+
+	if strings.ContainsAny(input, " /") {
+		return fmt.Errorf("invalid characters")
+	}
+
+	if strings.Contains(input, ":") {
+		parts := strings.Split(input, ":")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid port")
+		}
+		if !stringIsPort(parts[1]) {
+			return fmt.Errorf("invalid port")
+		}
+	}
+
+	return nil
+}
+
+func stringIsPort(input string) bool {
+	i, err := strconv.ParseInt(input, 10, 64)
+	if err != nil {
+		return false
+	}
+	if i <= 0 || i > 65535 {
+		return false
+	}
+	return true
 }

@@ -3,6 +3,7 @@ module github.com/s00500/molehill/cmd/mole
 go 1.16
 
 require (
+	github.com/manifoldco/promptui v0.8.0 // indirect
 	github.com/mattn/go-colorable v0.1.8
 	github.com/mattn/go-isatty v0.0.13 // indirect
 	github.com/s00500/env_logger v0.1.19
