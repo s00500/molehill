@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gliderlabs/ssh"
+	log "github.com/s00500/env_logger"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -26,12 +27,14 @@ type localForwardChannelData struct {
 func DirectTCPIPHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
 	d := localForwardChannelData{}
 	if err := gossh.Unmarshal(newChan.ExtraData(), &d); err != nil {
-		newChan.Reject(gossh.ConnectionFailed, "error parsing forward data: "+err.Error())
+		err := newChan.Reject(gossh.ConnectionFailed, "error parsing forward data: "+err.Error())
+		log.Should(err)
 		return
 	}
 
 	if srv.LocalPortForwardingCallback == nil || !srv.LocalPortForwardingCallback(ctx, d.DestAddr, d.DestPort) {
-		newChan.Reject(gossh.Prohibited, "port forwarding is disabled")
+		err := newChan.Reject(gossh.Prohibited, "port forwarding is disabled BITCH")
+		log.Should(err)
 		return
 	}
 
@@ -43,14 +46,16 @@ func DirectTCPIPHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.N
 	file += ".socket"
 
 	if _, err := os.Stat(file); os.IsNotExist(err) {
-		newChan.Reject(gossh.ConnectionFailed, "Not available")
+		err := newChan.Reject(gossh.ConnectionFailed, "Not available")
+		log.Should(err)
 		return
 	}
 
 	var dialer net.Dialer
 	dconn, err := dialer.DialContext(ctx, "unix", file)
 	if err != nil {
-		newChan.Reject(gossh.ConnectionFailed, err.Error())
+		err := newChan.Reject(gossh.ConnectionFailed, err.Error())
+		log.Should(err)
 		return
 	}
 
@@ -64,11 +69,13 @@ func DirectTCPIPHandler(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.N
 	go func() {
 		defer ch.Close()
 		defer dconn.Close()
-		io.Copy(ch, dconn)
+		_, err := io.Copy(ch, dconn)
+		log.Should(err)
 	}()
 	go func() {
 		defer ch.Close()
 		defer dconn.Close()
-		io.Copy(dconn, ch)
+		_, err := io.Copy(dconn, ch)
+		log.Should(err)
 	}()
 }

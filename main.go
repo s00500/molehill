@@ -109,6 +109,9 @@ func main() {
 			configMu.RUnlock()
 			return false
 		}),
+		ConnectionFailedCallback: func(conn net.Conn, err error) {
+			log.Error(err)
+		},
 		PasswordHandler: ssh.PasswordHandler(func(ctx ssh.Context, password string) bool {
 			configMu.RLock()
 			for _, user := range config.Users {
@@ -128,7 +131,7 @@ func main() {
 			log.Should(err)
 		}),
 		LocalPortForwardingCallback: ssh.LocalPortForwardingCallback(func(ctx ssh.Context, destinationHost string, destinationPort uint32) bool {
-			log.Println("attempt to GRAB", destinationHost, destinationPort, "for user", ctx.User(), ctx.RemoteAddr(), "granted")
+			log.Println("attempt to GRAB", destinationHost, destinationPort, "for user", ctx.User(), ctx.RemoteAddr(), "- checking...")
 
 			configMu.RLock()
 			for _, user := range config.Users {

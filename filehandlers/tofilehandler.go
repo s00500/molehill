@@ -115,6 +115,12 @@ func (h *ForwardedTCPToFileHandler) HandleSSHRequest(ctx ssh.Context, srv *ssh.S
 				}
 				originAddr, orignPortStr, _ := net.SplitHostPort(c.RemoteAddr().String())
 				originPort, _ := strconv.Atoi(orignPortStr)
+				if originPort == 0 {
+					originPort = 1
+				}
+				if originAddr == "" {
+					originAddr = "127.0.0.1"
+				}
 				payload := gossh.Marshal(&remoteForwardChannelData{
 					DestAddr:   reqPayload.BindAddr,
 					DestPort:   uint32(destPort),
@@ -132,12 +138,14 @@ func (h *ForwardedTCPToFileHandler) HandleSSHRequest(ctx ssh.Context, srv *ssh.S
 					go func() {
 						defer ch.Close()
 						defer c.Close()
-						io.Copy(ch, c)
+						_, err := io.Copy(ch, c)
+						log.Should(err)
 					}()
 					go func() {
 						defer ch.Close()
 						defer c.Close()
-						io.Copy(c, ch)
+						_, err := io.Copy(c, ch)
+						log.Should(err)
 					}()
 				}()
 			}
