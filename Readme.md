@@ -43,6 +43,8 @@ use `go install github.com/s00500/molehill/cmd/mole@master`
 
 TO BE DONE
 
+This should also work well with: https://github.com/ferama/rospo
+
 # Donate
 
 If you like this project you can [buy me a coffee here](https://paypal.me/lukasbachschwell/5)
