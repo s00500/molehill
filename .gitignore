@@ -4,3 +4,4 @@ main
 molehill
 config.yml
 sockets
+.DS_Store

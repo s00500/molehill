@@ -49,7 +49,7 @@ This should also work well with: https://github.com/ferama/rospo
 
 If you like this project you can [buy me a coffee here](https://paypal.me/lukasbachschwell/5)
 
-If you have any questions, ideas, iimprovements, or obvious bugs please open an issue or submit a PR.
+If you have any questions, ideas, improvements, or obvious bugs please open an issue or submit a PR.
 
 # TODO: 
 
